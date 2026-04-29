@@ -7,26 +7,52 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { Trash2, Plus, ExternalLink, LogOut, Copy } from "lucide-react";
+import {
+  Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle,
+} from "@/components/ui/dialog";
+import { Trash2, Plus, ExternalLink, LogOut, Copy, Pencil, LinkIcon, Save } from "lucide-react";
 import { useLinks, useProfile } from "@/hooks/useStore";
 import { store, type LinkItem, type LayoutPreset, type BgKind } from "@/lib/store";
+import { auth, type JwtPayload } from "@/lib/auth";
 import { toast } from "sonner";
 
-export const AdminPanel = () => {
+type Props = { session: JwtPayload };
+
+const CATEGORIES: { value: LinkItem["category"]; label: string }[] = [
+  { value: "social", label: "Social" },
+  { value: "business", label: "Business / Recent" },
+  { value: "spotlight", label: "Spotlight" },
+];
+
+export const AdminPanel = ({ session }: Props) => {
   const [profile, setProfile] = useProfile();
-  const [links, setLinks] = useLinks();
+  const [links] = useLinks();
   const [draft, setDraft] = useState<{ label: string; url: string; category: LinkItem["category"] }>({ label: "", url: "", category: "business" });
+  const [editing, setEditing] = useState<LinkItem | null>(null);
 
   const addLink = (e: React.FormEvent) => {
     e.preventDefault();
     if (!draft.label.trim() || !draft.url.trim()) return;
-    const next: LinkItem = { id: crypto.randomUUID(), label: draft.label.trim(), url: draft.url.trim(), category: draft.category };
-    setLinks([...links, next]);
+    store.addLink({ label: draft.label.trim(), url: draft.url.trim(), category: draft.category });
     setDraft({ label: "", url: "", category: draft.category });
     toast.success("Link added");
   };
 
-  const removeLink = (id: string) => setLinks(links.filter((l) => l.id !== id));
+  const removeLink = (id: string) => {
+    store.deleteLink(id);
+    toast.success("Link deleted");
+  };
+
+  const saveEdit = () => {
+    if (!editing) return;
+    if (!editing.label.trim() || !editing.url.trim()) {
+      toast.error("Label and URL are required");
+      return;
+    }
+    store.updateLink(editing.id, { label: editing.label.trim(), url: editing.url.trim(), category: editing.category });
+    setEditing(null);
+    toast.success("Link updated");
+  };
 
   const copyShare = async () => {
     await navigator.clipboard.writeText(window.location.origin + "/");
@@ -34,28 +60,44 @@ export const AdminPanel = () => {
   };
 
   return (
-    <div className="min-h-screen bg-muted/30">
-      <header className="sticky top-0 z-10 border-b bg-background/80 backdrop-blur">
-        <div className="mx-auto flex max-w-5xl items-center justify-between px-4 py-3">
-          <h1 className="text-lg font-semibold">Admin panel</h1>
+    <div className="min-h-screen bg-[hsl(16_90%_65%)] pb-12">
+      {/* Header — same warm palette as the user panel */}
+      <header className="sticky top-0 z-20 border-b-2 border-foreground bg-[hsl(16_90%_65%)]/95 backdrop-blur">
+        <div className="mx-auto flex max-w-5xl flex-wrap items-center justify-between gap-3 px-4 py-3">
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-white shadow ring-2 ring-white/40">
+              <LinkIcon className="h-5 w-5 text-[hsl(16_90%_55%)]" />
+            </div>
+            <div className="leading-tight">
+              <p className="text-sm font-bold text-white drop-shadow">Admin</p>
+              <p className="text-xs text-white/90">Signed in as {session.username}</p>
+            </div>
+          </div>
           <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm" onClick={copyShare}><Copy className="mr-2 h-4 w-4" />Share link</Button>
-            <Button asChild variant="outline" size="sm"><RLink to="/"><ExternalLink className="mr-2 h-4 w-4" />View page</RLink></Button>
-            <Button variant="ghost" size="sm" onClick={() => store.logout()}><LogOut className="mr-2 h-4 w-4" />Log out</Button>
+            <Button variant="secondary" size="sm" onClick={copyShare} className="rounded-full">
+              <Copy className="mr-2 h-4 w-4" />Share
+            </Button>
+            <Button asChild variant="secondary" size="sm" className="rounded-full">
+              <RLink to="/"><ExternalLink className="mr-2 h-4 w-4" />View page</RLink>
+            </Button>
+            <Button size="sm" onClick={() => auth.logout()} className="rounded-full bg-foreground text-background hover:bg-foreground/90">
+              <LogOut className="mr-2 h-4 w-4" />Log out
+            </Button>
           </div>
         </div>
       </header>
 
-      <main className="mx-auto max-w-5xl px-4 py-6">
+      <main className="mx-auto max-w-5xl px-4 py-8">
         <Tabs defaultValue="links">
-          <TabsList>
-            <TabsTrigger value="links">Links</TabsTrigger>
-            <TabsTrigger value="profile">Profile</TabsTrigger>
-            <TabsTrigger value="theme">Customization</TabsTrigger>
+          <TabsList className="grid w-full grid-cols-3 rounded-full bg-white/85 p-1 shadow">
+            <TabsTrigger value="links" className="rounded-full">Links</TabsTrigger>
+            <TabsTrigger value="profile" className="rounded-full">Profile</TabsTrigger>
+            <TabsTrigger value="theme" className="rounded-full">Customization</TabsTrigger>
           </TabsList>
 
-          <TabsContent value="links" className="mt-4 space-y-4">
-            <Card>
+          {/* LINKS */}
+          <TabsContent value="links" className="mt-6 space-y-5">
+            <Card className="rounded-3xl border-2 border-foreground shadow-[6px_6px_0_0_hsl(0_0%_10%)]">
               <CardHeader><CardTitle>Add a link</CardTitle></CardHeader>
               <CardContent>
                 <form onSubmit={addLink} className="grid gap-3 md:grid-cols-[1fr_1fr_180px_auto]">
@@ -64,28 +106,31 @@ export const AdminPanel = () => {
                   <Select value={draft.category} onValueChange={(v) => setDraft({ ...draft, category: v as LinkItem["category"] })}>
                     <SelectTrigger><SelectValue /></SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="social">Social</SelectItem>
-                      <SelectItem value="business">Business / Recent</SelectItem>
-                      <SelectItem value="spotlight">Spotlight</SelectItem>
+                      {CATEGORIES.map((c) => <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>)}
                     </SelectContent>
                   </Select>
-                  <Button type="submit"><Plus className="mr-2 h-4 w-4" />Add</Button>
+                  <Button type="submit" className="rounded-full bg-foreground text-background hover:bg-foreground/90">
+                    <Plus className="mr-2 h-4 w-4" />Add
+                  </Button>
                 </form>
               </CardContent>
             </Card>
 
-            <Card>
-              <CardHeader><CardTitle>Your links</CardTitle></CardHeader>
+            <Card className="rounded-3xl border-2 border-foreground shadow-[6px_6px_0_0_hsl(0_0%_10%)]">
+              <CardHeader><CardTitle>Your links ({links.length})</CardTitle></CardHeader>
               <CardContent className="space-y-2">
-                {links.length === 0 && <p className="text-sm text-muted-foreground">No links yet.</p>}
+                {links.length === 0 && <p className="text-sm text-muted-foreground">No links yet. Add your first one above.</p>}
                 {links.map((l) => (
-                  <div key={l.id} className="flex items-center justify-between rounded-md border bg-card px-3 py-2">
-                    <div className="min-w-0">
-                      <p className="truncate text-sm font-medium">{l.label}</p>
+                  <div key={l.id} className="flex items-center justify-between gap-3 rounded-2xl border bg-card px-3 py-2.5">
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-semibold">{l.label}</p>
                       <p className="truncate text-xs text-muted-foreground">{l.url}</p>
                     </div>
-                    <div className="flex items-center gap-3">
-                      <span className="rounded-full bg-secondary px-2 py-0.5 text-xs capitalize">{l.category}</span>
+                    <div className="flex items-center gap-2">
+                      <span className="rounded-full bg-secondary px-2.5 py-0.5 text-xs capitalize">{l.category}</span>
+                      <Button variant="ghost" size="icon" onClick={() => setEditing({ ...l })} aria-label="Edit link">
+                        <Pencil className="h-4 w-4" />
+                      </Button>
                       <Button variant="ghost" size="icon" onClick={() => removeLink(l.id)} aria-label="Delete link">
                         <Trash2 className="h-4 w-4" />
                       </Button>
@@ -96,8 +141,9 @@ export const AdminPanel = () => {
             </Card>
           </TabsContent>
 
-          <TabsContent value="profile" className="mt-4">
-            <Card>
+          {/* PROFILE */}
+          <TabsContent value="profile" className="mt-6">
+            <Card className="rounded-3xl border-2 border-foreground shadow-[6px_6px_0_0_hsl(0_0%_10%)]">
               <CardHeader><CardTitle>Profile</CardTitle></CardHeader>
               <CardContent className="grid gap-4 md:grid-cols-2">
                 <div className="space-y-2"><Label>Handle</Label><Input value={profile.username} onChange={(e) => setProfile({ ...profile, username: e.target.value })} /></div>
@@ -110,8 +156,9 @@ export const AdminPanel = () => {
             </Card>
           </TabsContent>
 
-          <TabsContent value="theme" className="mt-4 space-y-4">
-            <Card>
+          {/* CUSTOMIZATION */}
+          <TabsContent value="theme" className="mt-6 space-y-5">
+            <Card className="rounded-3xl border-2 border-foreground shadow-[6px_6px_0_0_hsl(0_0%_10%)]">
               <CardHeader><CardTitle>Background</CardTitle></CardHeader>
               <CardContent className="space-y-4">
                 <RadioGroup value={profile.bgKind} onValueChange={(v) => setProfile({ ...profile, bgKind: v as BgKind })} className="flex gap-6">
@@ -134,7 +181,7 @@ export const AdminPanel = () => {
               </CardContent>
             </Card>
 
-            <Card>
+            <Card className="rounded-3xl border-2 border-foreground shadow-[6px_6px_0_0_hsl(0_0%_10%)]">
               <CardHeader><CardTitle>Theme colors</CardTitle></CardHeader>
               <CardContent className="grid gap-4 md:grid-cols-3">
                 {([["textColor","Main text"],["cardColor","Link card"],["cardTextColor","Link text"]] as const).map(([k, label]) => (
@@ -149,7 +196,7 @@ export const AdminPanel = () => {
               </CardContent>
             </Card>
 
-            <Card>
+            <Card className="rounded-3xl border-2 border-foreground shadow-[6px_6px_0_0_hsl(0_0%_10%)]">
               <CardHeader><CardTitle>Layout</CardTitle></CardHeader>
               <CardContent>
                 <RadioGroup value={profile.layout} onValueChange={(v) => setProfile({ ...profile, layout: v as LayoutPreset })} className="grid gap-3 md:grid-cols-3">
@@ -158,7 +205,7 @@ export const AdminPanel = () => {
                     ["soft-card", "Soft card", "Rounded card with soft shadow"],
                     ["outline-pill", "Outline pill", "Transparent pill with border"],
                   ] as const).map(([val, name, desc]) => (
-                    <label key={val} htmlFor={`lay-${val}`} className="flex cursor-pointer items-start gap-3 rounded-md border bg-card p-3 hover:bg-accent/30">
+                    <label key={val} htmlFor={`lay-${val}`} className="flex cursor-pointer items-start gap-3 rounded-2xl border bg-card p-3 hover:bg-accent/30">
                       <RadioGroupItem id={`lay-${val}`} value={val} className="mt-1" />
                       <div>
                         <p className="text-sm font-medium">{name}</p>
@@ -172,6 +219,40 @@ export const AdminPanel = () => {
           </TabsContent>
         </Tabs>
       </main>
+
+      {/* Edit link dialog */}
+      <Dialog open={!!editing} onOpenChange={(o) => !o && setEditing(null)}>
+        <DialogContent className="rounded-3xl">
+          <DialogHeader><DialogTitle>Edit link</DialogTitle></DialogHeader>
+          {editing && (
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="e-label">Label</Label>
+                <Input id="e-label" value={editing.label} onChange={(e) => setEditing({ ...editing, label: e.target.value })} />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="e-url">URL</Label>
+                <Input id="e-url" type="url" value={editing.url} onChange={(e) => setEditing({ ...editing, url: e.target.value })} />
+              </div>
+              <div className="space-y-2">
+                <Label>Category</Label>
+                <Select value={editing.category} onValueChange={(v) => setEditing({ ...editing, category: v as LinkItem["category"] })}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {CATEGORIES.map((c) => <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditing(null)}>Cancel</Button>
+            <Button onClick={saveEdit} className="bg-foreground text-background hover:bg-foreground/90">
+              <Save className="mr-2 h-4 w-4" />Save changes
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
