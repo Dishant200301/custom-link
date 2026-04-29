@@ -182,7 +182,34 @@ export const AdminPanel = ({ session }: Props) => {
                 <div className="space-y-2"><Label>Handle</Label><Input value={profile.username} onChange={(e) => setProfile({ ...profile, username: e.target.value })} /></div>
                 <div className="space-y-2"><Label>Display name</Label><Input value={profile.name} onChange={(e) => setProfile({ ...profile, name: e.target.value })} /></div>
                 <div className="space-y-2 md:col-span-2"><Label>Tagline</Label><Input value={profile.tagline} onChange={(e) => setProfile({ ...profile, tagline: e.target.value })} /></div>
-                <div className="space-y-2 md:col-span-2"><Label>Avatar / logo URL</Label><Input value={profile.avatarUrl} onChange={(e) => setProfile({ ...profile, avatarUrl: e.target.value })} placeholder="https://..." /></div>
+                <div className="space-y-2 md:col-span-2">
+                  <Label>Avatar / logo</Label>
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-full border bg-muted">
+                      {profile.avatarUrl ? (
+                        <img src={profile.avatarUrl} alt="Logo preview" className="h-full w-full object-cover" />
+                      ) : (
+                        <LinkIcon className="h-5 w-5 text-muted-foreground" />
+                      )}
+                    </div>
+                    <div className="flex-1 space-y-2">
+                      <Input value={profile.avatarUrl.startsWith("data:") ? "" : profile.avatarUrl} onChange={(e) => setProfile({ ...profile, avatarUrl: e.target.value })} placeholder="https://... (image URL)" />
+                      <div className="flex items-center gap-2">
+                        <Button asChild type="button" variant="outline" size="sm" className="rounded-full">
+                          <label className="cursor-pointer">
+                            <Upload className="mr-2 h-4 w-4" />Upload image
+                            <input type="file" accept="image/*" className="hidden" onChange={(e) => handleAvatarFile(e.target.files?.[0])} />
+                          </label>
+                        </Button>
+                        {profile.avatarUrl && (
+                          <Button type="button" variant="ghost" size="sm" onClick={() => setProfile({ ...profile, avatarUrl: "" })}>
+                            Remove
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </div>
                 <div className="space-y-2"><Label>Spotlight section title</Label><Input value={profile.spotlightLabel} onChange={(e) => setProfile({ ...profile, spotlightLabel: e.target.value })} /></div>
                 <div className="space-y-2"><Label>Recent / business section title</Label><Input value={profile.recentLabel} onChange={(e) => setProfile({ ...profile, recentLabel: e.target.value })} /></div>
               </CardContent>
