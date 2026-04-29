@@ -234,8 +234,24 @@ export const AdminPanel = ({ session }: Props) => {
                     </div>
                   </div>
                   <div className="space-y-2">
-                    <Label>Background video URL (mp4)</Label>
-                    <Input value={profile.bgVideoUrl} onChange={(e) => setProfile({ ...profile, bgVideoUrl: e.target.value })} placeholder="https://.../video.mp4" />
+                    <Label>Background video</Label>
+                    <Input value={profile.bgVideoUrl.startsWith("data:") ? "" : profile.bgVideoUrl} onChange={(e) => setProfile({ ...profile, bgVideoUrl: e.target.value })} placeholder="https://.../video.mp4" />
+                    <div className="flex items-center gap-2">
+                      <Button asChild type="button" variant="outline" size="sm" className="rounded-full">
+                        <label className="cursor-pointer">
+                          <Upload className="mr-2 h-4 w-4" />Upload video
+                          <input type="file" accept="video/*" className="hidden" onChange={(e) => handleVideoFile(e.target.files?.[0])} />
+                        </label>
+                      </Button>
+                      {profile.bgVideoUrl && (
+                        <Button type="button" variant="ghost" size="sm" onClick={() => setProfile({ ...profile, bgVideoUrl: "" })}>
+                          Remove
+                        </Button>
+                      )}
+                    </div>
+                    {profile.bgVideoUrl.startsWith("data:") && (
+                      <p className="text-xs text-muted-foreground">Local video uploaded ✓</p>
+                    )}
                   </div>
                 </div>
               </CardContent>
