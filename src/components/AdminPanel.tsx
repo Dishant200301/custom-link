@@ -10,7 +10,7 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import {
   Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
-import { Trash2, Plus, ExternalLink, LogOut, Copy, Pencil, LinkIcon, Save } from "lucide-react";
+import { Trash2, Plus, ExternalLink, LogOut, Copy, Pencil, LinkIcon, Save, Upload } from "lucide-react";
 import { useLinks, useProfile } from "@/hooks/useStore";
 import { store, type LinkItem, type LayoutPreset, type BgKind } from "@/lib/store";
 import { auth, type JwtPayload } from "@/lib/auth";
@@ -57,6 +57,39 @@ export const AdminPanel = ({ session }: Props) => {
   const copyShare = async () => {
     await navigator.clipboard.writeText(window.location.origin + "/");
     toast.success("Public link copied");
+  };
+
+  const readFileAsDataUrl = (file: File) =>
+    new Promise<string>((resolve, reject) => {
+      const r = new FileReader();
+      r.onload = () => resolve(String(r.result));
+      r.onerror = () => reject(r.error);
+      r.readAsDataURL(file);
+    });
+
+  const handleAvatarFile = async (file?: File | null) => {
+    if (!file) return;
+    if (!file.type.startsWith("image/")) { toast.error("Please choose an image file"); return; }
+    if (file.size > 2 * 1024 * 1024) { toast.error("Image too large (max 2MB)"); return; }
+    try {
+      const dataUrl = await readFileAsDataUrl(file);
+      setProfile({ ...profile, avatarUrl: dataUrl });
+      toast.success("Logo uploaded");
+    } catch { toast.error("Failed to read file"); }
+  };
+
+  const handleVideoFile = async (file?: File | null) => {
+    if (!file) return;
+    if (!file.type.startsWith("video/")) { toast.error("Please choose a video file"); return; }
+    if (file.size > 4 * 1024 * 1024) {
+      toast.error("Video too large for local storage (max 4MB). Use a URL instead.");
+      return;
+    }
+    try {
+      const dataUrl = await readFileAsDataUrl(file);
+      setProfile({ ...profile, bgVideoUrl: dataUrl, bgKind: "video" });
+      toast.success("Background video uploaded");
+    } catch { toast.error("Failed to read file"); }
   };
 
   return (
@@ -149,7 +182,34 @@ export const AdminPanel = ({ session }: Props) => {
                 <div className="space-y-2"><Label>Handle</Label><Input value={profile.username} onChange={(e) => setProfile({ ...profile, username: e.target.value })} /></div>
                 <div className="space-y-2"><Label>Display name</Label><Input value={profile.name} onChange={(e) => setProfile({ ...profile, name: e.target.value })} /></div>
                 <div className="space-y-2 md:col-span-2"><Label>Tagline</Label><Input value={profile.tagline} onChange={(e) => setProfile({ ...profile, tagline: e.target.value })} /></div>
-                <div className="space-y-2 md:col-span-2"><Label>Avatar / logo URL</Label><Input value={profile.avatarUrl} onChange={(e) => setProfile({ ...profile, avatarUrl: e.target.value })} placeholder="https://..." /></div>
+                <div className="space-y-2 md:col-span-2">
+                  <Label>Avatar / logo</Label>
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-full border bg-muted">
+                      {profile.avatarUrl ? (
+                        <img src={profile.avatarUrl} alt="Logo preview" className="h-full w-full object-cover" />
+                      ) : (
+                        <LinkIcon className="h-5 w-5 text-muted-foreground" />
+                      )}
+                    </div>
+                    <div className="flex-1 space-y-2">
+                      <Input value={profile.avatarUrl.startsWith("data:") ? "" : profile.avatarUrl} onChange={(e) => setProfile({ ...profile, avatarUrl: e.target.value })} placeholder="https://... (image URL)" />
+                      <div className="flex items-center gap-2">
+                        <Button asChild type="button" variant="outline" size="sm" className="rounded-full">
+                          <label className="cursor-pointer">
+                            <Upload className="mr-2 h-4 w-4" />Upload image
+                            <input type="file" accept="image/*" className="hidden" onChange={(e) => handleAvatarFile(e.target.files?.[0])} />
+                          </label>
+                        </Button>
+                        {profile.avatarUrl && (
+                          <Button type="button" variant="ghost" size="sm" onClick={() => setProfile({ ...profile, avatarUrl: "" })}>
+                            Remove
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </div>
                 <div className="space-y-2"><Label>Spotlight section title</Label><Input value={profile.spotlightLabel} onChange={(e) => setProfile({ ...profile, spotlightLabel: e.target.value })} /></div>
                 <div className="space-y-2"><Label>Recent / business section title</Label><Input value={profile.recentLabel} onChange={(e) => setProfile({ ...profile, recentLabel: e.target.value })} /></div>
               </CardContent>
@@ -174,8 +234,24 @@ export const AdminPanel = ({ session }: Props) => {
                     </div>
                   </div>
                   <div className="space-y-2">
-                    <Label>Background video URL (mp4)</Label>
-                    <Input value={profile.bgVideoUrl} onChange={(e) => setProfile({ ...profile, bgVideoUrl: e.target.value })} placeholder="https://.../video.mp4" />
+                    <Label>Background video</Label>
+                    <Input value={profile.bgVideoUrl.startsWith("data:") ? "" : profile.bgVideoUrl} onChange={(e) => setProfile({ ...profile, bgVideoUrl: e.target.value })} placeholder="https://.../video.mp4" />
+                    <div className="flex items-center gap-2">
+                      <Button asChild type="button" variant="outline" size="sm" className="rounded-full">
+                        <label className="cursor-pointer">
+                          <Upload className="mr-2 h-4 w-4" />Upload video
+                          <input type="file" accept="video/*" className="hidden" onChange={(e) => handleVideoFile(e.target.files?.[0])} />
+                        </label>
+                      </Button>
+                      {profile.bgVideoUrl && (
+                        <Button type="button" variant="ghost" size="sm" onClick={() => setProfile({ ...profile, bgVideoUrl: "" })}>
+                          Remove
+                        </Button>
+                      )}
+                    </div>
+                    {profile.bgVideoUrl.startsWith("data:") && (
+                      <p className="text-xs text-muted-foreground">Local video uploaded ✓</p>
+                    )}
                   </div>
                 </div>
               </CardContent>
