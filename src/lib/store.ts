@@ -20,13 +20,9 @@ export type Profile = {
   recentLabel: string;     // e.g. "Recent Posts"
 };
 
-export type AdminUser = { username: string; password: string };
-
 const KEYS = {
   profile: "lt_profile",
   links: "lt_links",
-  user: "lt_admin_user",
-  session: "lt_admin_session",
 };
 
 const defaultLinks: LinkItem[] = [
@@ -78,24 +74,15 @@ export const store = {
   },
   saveLinks(links: LinkItem[]) { write(KEYS.links, links); },
 
-  // Auth (local only — single admin)
-  getUser(): AdminUser | null { return read<AdminUser | null>(KEYS.user, null); },
-  signup(username: string, password: string) {
-    if (this.getUser()) throw new Error("Admin account already exists. Please log in.");
-    if (username.trim().length < 3) throw new Error("Username must be at least 3 characters.");
-    if (password.length < 6) throw new Error("Password must be at least 6 characters.");
-    write(KEYS.user, { username: username.trim(), password });
-    localStorage.setItem(KEYS.session, "1");
+  addLink(input: Omit<LinkItem, "id">) {
+    const next: LinkItem = { id: crypto.randomUUID(), ...input };
+    this.saveLinks([...this.getLinks(), next]);
+    return next;
   },
-  login(username: string, password: string) {
-    const u = this.getUser();
-    if (!u) throw new Error("No admin account exists. Please sign up first.");
-    if (u.username !== username.trim() || u.password !== password) throw new Error("Invalid credentials.");
-    localStorage.setItem(KEYS.session, "1");
-    window.dispatchEvent(new Event("lt:update"));
+  updateLink(id: string, patch: Partial<Omit<LinkItem, "id">>) {
+    this.saveLinks(this.getLinks().map((l) => (l.id === id ? { ...l, ...patch } : l)));
   },
-  logout() { localStorage.removeItem(KEYS.session); window.dispatchEvent(new Event("lt:update")); },
-  isAuthed(): boolean { return localStorage.getItem(KEYS.session) === "1"; },
+  deleteLink(id: string) { this.saveLinks(this.getLinks().filter((l) => l.id !== id)); },
 };
 
 export const SOCIAL_ICONS: Record<string, string> = {
