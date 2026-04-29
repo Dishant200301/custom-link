@@ -10,7 +10,7 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import {
   Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
-import { Trash2, Plus, ExternalLink, LogOut, Copy, Pencil, LinkIcon, Save } from "lucide-react";
+import { Trash2, Plus, ExternalLink, LogOut, Copy, Pencil, LinkIcon, Save, Upload } from "lucide-react";
 import { useLinks, useProfile } from "@/hooks/useStore";
 import { store, type LinkItem, type LayoutPreset, type BgKind } from "@/lib/store";
 import { auth, type JwtPayload } from "@/lib/auth";
