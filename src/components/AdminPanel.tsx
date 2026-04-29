@@ -59,6 +59,39 @@ export const AdminPanel = ({ session }: Props) => {
     toast.success("Public link copied");
   };
 
+  const readFileAsDataUrl = (file: File) =>
+    new Promise<string>((resolve, reject) => {
+      const r = new FileReader();
+      r.onload = () => resolve(String(r.result));
+      r.onerror = () => reject(r.error);
+      r.readAsDataURL(file);
+    });
+
+  const handleAvatarFile = async (file?: File | null) => {
+    if (!file) return;
+    if (!file.type.startsWith("image/")) { toast.error("Please choose an image file"); return; }
+    if (file.size > 2 * 1024 * 1024) { toast.error("Image too large (max 2MB)"); return; }
+    try {
+      const dataUrl = await readFileAsDataUrl(file);
+      setProfile({ ...profile, avatarUrl: dataUrl });
+      toast.success("Logo uploaded");
+    } catch { toast.error("Failed to read file"); }
+  };
+
+  const handleVideoFile = async (file?: File | null) => {
+    if (!file) return;
+    if (!file.type.startsWith("video/")) { toast.error("Please choose a video file"); return; }
+    if (file.size > 4 * 1024 * 1024) {
+      toast.error("Video too large for local storage (max 4MB). Use a URL instead.");
+      return;
+    }
+    try {
+      const dataUrl = await readFileAsDataUrl(file);
+      setProfile({ ...profile, bgVideoUrl: dataUrl, bgKind: "video" });
+      toast.success("Background video uploaded");
+    } catch { toast.error("Failed to read file"); }
+  };
+
   return (
     <div className="min-h-screen bg-[hsl(16_90%_65%)] pb-12">
       {/* Header — same warm palette as the user panel */}
