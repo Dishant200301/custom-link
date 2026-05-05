@@ -23,22 +23,31 @@ function layoutClass(layout: LayoutPreset) {
 }
 
 export const UserPanel = () => {
-  const [profile] = useProfile();
-  const [links] = useLinks();
+  const { profile, loading: profileLoading } = useProfile();
+  const { links, loading: linksLoading } = useLinks();
 
   // Apply theme tokens scoped to the panel via CSS variables on body.
   useEffect(() => {
+    if (profileLoading) return;
     const root = document.documentElement;
     root.style.setProperty("--lt-bg", hexToHsl(profile.bgColor));
     root.style.setProperty("--lt-text", hexToHsl(profile.textColor));
     root.style.setProperty("--lt-card", hexToHsl(profile.cardColor));
     root.style.setProperty("--lt-card-text", hexToHsl(profile.cardTextColor));
-  }, [profile]);
+  }, [profile, profileLoading]);
 
   const social = useMemo(() => links.filter((l) => l.category === "social"), [links]);
   const spotlight = useMemo(() => links.filter((l) => l.category === "spotlight"), [links]);
   const business = useMemo(() => links.filter((l) => l.category === "business"), [links]);
   const linkClass = layoutClass(profile.layout);
+
+  if (profileLoading || linksLoading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-[hsl(16_90%_65%)]">
+        <div className="h-8 w-8 animate-spin rounded-full border-4 border-white/30 border-t-white" />
+      </div>
+    );
+  }
 
   return (
     <div className="relative min-h-screen w-full overflow-hidden" style={{ backgroundColor: profile.bgKind === "color" ? profile.bgColor : "#000" }}>
