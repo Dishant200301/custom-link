@@ -1,21 +1,30 @@
-import { useState } from "react";
-import { Link as RLink } from "react-router-dom";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { auth } from "@/lib/auth";
 import { toast } from "sonner";
-import { LinkIcon, ArrowLeft, Loader2 } from "lucide-react";
+import { LinkIcon, Loader2 } from "lucide-react";
 
 export const AdminAuth = () => {
-  const hasAccount = auth.hasAccount();
-  const [tab, setTab] = useState<"login" | "signup">(hasAccount ? "login" : "signup");
+  const [hasAccount, setHasAccount] = useState<boolean | null>(null); // null = loading
+  const [tab, setTab] = useState<"login" | "signup">("login");
   const [identifier, setIdentifier] = useState(""); // email or username on login
   const [username, setUsername] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
+
+  // Check if an admin account exists in the database
+  useEffect(() => {
+    const check = async () => {
+      const exists = await auth.hasAccount();
+      setHasAccount(exists);
+      setTab(exists ? "login" : "signup");
+    };
+    check();
+  }, []);
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -35,6 +44,15 @@ export const AdminAuth = () => {
     }
   };
 
+  // Show loader while checking if account exists
+  if (hasAccount === null) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-[hsl(16_90%_65%)]">
+        <div className="h-8 w-8 animate-spin rounded-full border-4 border-white/30 border-t-white" />
+      </div>
+    );
+  }
+
   return (
     <div className="relative min-h-screen w-full overflow-hidden bg-[hsl(16_90%_65%)]">
       {/* Decorative blobs */}
@@ -42,10 +60,6 @@ export const AdminAuth = () => {
       <div className="pointer-events-none absolute -bottom-24 -right-16 h-80 w-80 rounded-full bg-black/10 blur-3xl" />
 
       <main className="relative z-10 mx-auto flex min-h-screen max-w-md flex-col items-center justify-center px-6 py-10 text-foreground">
-        <RLink to="/" className="absolute left-4 top-4 inline-flex items-center gap-1 rounded-full bg-white/80 px-3 py-1.5 text-xs font-medium text-foreground shadow hover:bg-white">
-          <ArrowLeft className="h-3.5 w-3.5" /> Public page
-        </RLink>
-
         {/* Avatar-style logo to mirror the user panel */}
         <div className="flex h-20 w-20 items-center justify-center rounded-full bg-white shadow-lg ring-4 ring-white/40">
           <LinkIcon className="h-9 w-9 text-[hsl(16_90%_55%)]" />
@@ -58,8 +72,8 @@ export const AdminAuth = () => {
         <div className="mt-6 w-full rounded-3xl border-2 border-foreground bg-white p-5 shadow-[6px_6px_0_0_hsl(0_0%_10%)]">
           <Tabs value={tab} onValueChange={(v) => setTab(v as "login" | "signup")}>
             <TabsList className="grid w-full grid-cols-2 rounded-full bg-muted p-1">
-              <TabsTrigger value="login" disabled={!hasAccount && tab !== "login"} className="rounded-full">Login</TabsTrigger>
-              <TabsTrigger value="signup" disabled={hasAccount} className="rounded-full">Sign up</TabsTrigger>
+              <TabsTrigger value="login" className="rounded-full">Login</TabsTrigger>
+              <TabsTrigger value="signup" className="rounded-full">Sign up</TabsTrigger>
             </TabsList>
 
             <TabsContent value="login" className="mt-5">
@@ -99,10 +113,6 @@ export const AdminAuth = () => {
             </TabsContent>
           </Tabs>
         </div>
-
-        <p className="mt-4 text-center text-xs text-white/80">
-          Sessions are signed with JWT (HS256) and stored locally.
-        </p>
       </main>
     </div>
   );
