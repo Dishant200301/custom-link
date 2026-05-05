@@ -1,3 +1,5 @@
+import { supabase } from "./supabase";
+
 // LocalStorage-backed admin store for the Linktree-style app.
 export type LinkItem = { id: string; label: string; url: string; category: "social" | "business" | "spotlight" };
 
@@ -25,24 +27,12 @@ const KEYS = {
   links: "lt_links",
 };
 
-const defaultLinks: LinkItem[] = [
-  { id: crypto.randomUUID(), label: "HubSpot Spotlight", url: "https://hubspot.com", category: "spotlight" },
-  { id: crypto.randomUUID(), label: "Check out what's new with HubSpot", url: "https://hubspot.com/new", category: "business" },
-  { id: crypto.randomUUID(), label: "The 2023 Global Unicorn Report", url: "https://hubspot.com/unicorn", category: "business" },
-  { id: crypto.randomUUID(), label: "Marketing Sales Leader Top 25 — Winners!", url: "https://hubspot.com/top25", category: "business" },
-  { id: crypto.randomUUID(), label: "Out of Office Email Generator", url: "https://hubspot.com/ooo", category: "business" },
-  { id: crypto.randomUUID(), label: "Content Assistant now in Public Beta", url: "https://hubspot.com/ai", category: "business" },
-  { id: crypto.randomUUID(), label: "Instagram", url: "https://instagram.com/hubspot", category: "social" },
-  { id: crypto.randomUUID(), label: "YouTube", url: "https://youtube.com/hubspot", category: "social" },
-  { id: crypto.randomUUID(), label: "LinkedIn", url: "https://linkedin.com/company/hubspot", category: "social" },
-  { id: crypto.randomUUID(), label: "X", url: "https://x.com/hubspot", category: "social" },
-  { id: crypto.randomUUID(), label: "TikTok", url: "https://tiktok.com/@hubspot", category: "social" },
-];
+const defaultLinks: LinkItem[] = [];
 
 const defaultProfile: Profile = {
-  username: "@hubspot",
-  name: "HubSpot",
-  tagline: "#GrowBetter",
+  username: "@username",
+  name: "My Page",
+  tagline: "Welcome to my page",
   avatarUrl: "",
   bgKind: "color",
   bgColor: "#FF7A59",
@@ -52,37 +42,95 @@ const defaultProfile: Profile = {
   textColor: "#111111",
   layout: "stack-bordered",
   spotlightLabel: "Spotlight 💡",
-  recentLabel: "Recent Posts",
+  recentLabel: "My Links",
 };
 
-function read<T>(key: string, fallback: T): T {
+function readLocal<T>(key: string, fallback: T): T {
   try {
     const raw = localStorage.getItem(key);
     return raw ? (JSON.parse(raw) as T) : fallback;
   } catch { return fallback; }
 }
-function write<T>(key: string, value: T) { localStorage.setItem(key, JSON.stringify(value)); window.dispatchEvent(new Event("lt:update")); }
+
+function writeLocal<T>(key: string, value: T) {
+  localStorage.setItem(key, JSON.stringify(value));
+  window.dispatchEvent(new Event("lt:update"));
+}
+
+const isSupabaseConfigured = () => {
+  return !!supabase;
+};
 
 export const store = {
-  getProfile(): Profile { return { ...defaultProfile, ...read<Partial<Profile>>(KEYS.profile, {}) }; },
-  saveProfile(p: Profile) { write(KEYS.profile, p); },
-
-  getLinks(): LinkItem[] {
-    const raw = localStorage.getItem(KEYS.links);
-    if (!raw) { write(KEYS.links, defaultLinks); return defaultLinks; }
-    try { return JSON.parse(raw) as LinkItem[]; } catch { return defaultLinks; }
+  // --- Cached (Sync) access for initial render ---
+  getCachedProfile(): Profile {
+    return { ...defaultProfile, ...readLocal<Partial<Profile>>(KEYS.profile, {}) };
   },
-  saveLinks(links: LinkItem[]) { write(KEYS.links, links); },
+  getCachedLinks(): LinkItem[] {
+    return readLocal<LinkItem[]>(KEYS.links, defaultLinks);
+  },
 
-  addLink(input: Omit<LinkItem, "id">) {
+  // --- Async access (DB + Local Update) ---
+  async getProfile(): Promise<Profile> {
+    if (isSupabaseConfigured()) {
+      const { data, error } = await supabase!.from('config').select('value').eq('key', 'profile').single();
+      if (error) {
+        console.error("Supabase getProfile error:", error.message);
+      } else if (data) {
+        const profile = { ...defaultProfile, ...data.value };
+        writeLocal(KEYS.profile, profile);
+        return profile;
+      }
+    }
+    return this.getCachedProfile();
+  },
+
+  async saveProfile(p: Profile) {
+    writeLocal(KEYS.profile, p);
+    if (isSupabaseConfigured()) {
+      const { error } = await supabase!.from('config').upsert({ key: 'profile', value: p }, { onConflict: 'key' });
+      if (error) console.error("Supabase saveProfile error:", error.message);
+    }
+  },
+
+  async getLinks(): Promise<LinkItem[]> {
+    if (isSupabaseConfigured()) {
+      const { data, error } = await supabase!.from('config').select('value').eq('key', 'links').single();
+      if (error) {
+        console.error("Supabase getLinks error:", error.message);
+      } else if (data) {
+        const links = data.value as LinkItem[];
+        writeLocal(KEYS.links, links);
+        return links;
+      }
+    }
+    return this.getCachedLinks();
+  },
+
+  async saveLinks(links: LinkItem[]) {
+    writeLocal(KEYS.links, links);
+    if (isSupabaseConfigured()) {
+      const { error } = await supabase!.from('config').upsert({ key: 'links', value: links }, { onConflict: 'key' });
+      if (error) console.error("Supabase saveLinks error:", error.message);
+    }
+  },
+
+  async addLink(input: Omit<LinkItem, "id">) {
+    const links = await this.getLinks();
     const next: LinkItem = { id: crypto.randomUUID(), ...input };
-    this.saveLinks([...this.getLinks(), next]);
+    await this.saveLinks([...links, next]);
     return next;
   },
-  updateLink(id: string, patch: Partial<Omit<LinkItem, "id">>) {
-    this.saveLinks(this.getLinks().map((l) => (l.id === id ? { ...l, ...patch } : l)));
+
+  async updateLink(id: string, patch: Partial<Omit<LinkItem, "id">>) {
+    const links = await this.getLinks();
+    await this.saveLinks(links.map((l) => (l.id === id ? { ...l, ...patch } : l)));
   },
-  deleteLink(id: string) { this.saveLinks(this.getLinks().filter((l) => l.id !== id)); },
+
+  async deleteLink(id: string) {
+    const links = await this.getLinks();
+    await this.saveLinks(links.filter((l) => l.id !== id));
+  },
 };
 
 export const SOCIAL_ICONS: Record<string, string> = {
