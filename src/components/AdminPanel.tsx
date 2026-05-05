@@ -1,5 +1,4 @@
-import { useState } from "react";
-import { Link as RLink } from "react-router-dom";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -10,11 +9,12 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import {
   Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
-import { Trash2, Plus, ExternalLink, LogOut, Copy, Pencil, LinkIcon, Save, Upload } from "lucide-react";
+import { Trash2, Plus, LogOut, Copy, Pencil, LinkIcon, Save, Upload, ExternalLink } from "lucide-react";
 import { useLinks, useProfile } from "@/hooks/useStore";
 import { store, type LinkItem, type LayoutPreset, type BgKind } from "@/lib/store";
 import { auth, type JwtPayload } from "@/lib/auth";
 import { toast } from "sonner";
+import { Link } from "react-router-dom";
 
 type Props = { session: JwtPayload };
 
@@ -25,31 +25,40 @@ const CATEGORIES: { value: LinkItem["category"]; label: string }[] = [
 ];
 
 export const AdminPanel = ({ session }: Props) => {
-  const [profile, setProfile] = useProfile();
-  const [links] = useLinks();
+  const { profile, setProfile, loading: profileLoading } = useProfile();
+  const { links, loading: linksLoading } = useLinks();
   const [draft, setDraft] = useState<{ label: string; url: string; category: LinkItem["category"] }>({ label: "", url: "", category: "business" });
   const [editing, setEditing] = useState<LinkItem | null>(null);
 
-  const addLink = (e: React.FormEvent) => {
+
+  if (profileLoading || linksLoading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-[hsl(16_90%_65%)]">
+        <div className="h-8 w-8 animate-spin rounded-full border-4 border-white/30 border-t-white" />
+      </div>
+    );
+  }
+
+  const addLink = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!draft.label.trim() || !draft.url.trim()) return;
-    store.addLink({ label: draft.label.trim(), url: draft.url.trim(), category: draft.category });
+    await store.addLink({ label: draft.label.trim(), url: draft.url.trim(), category: draft.category });
     setDraft({ label: "", url: "", category: draft.category });
     toast.success("Link added");
   };
 
-  const removeLink = (id: string) => {
-    store.deleteLink(id);
+  const removeLink = async (id: string) => {
+    await store.deleteLink(id);
     toast.success("Link deleted");
   };
 
-  const saveEdit = () => {
+  const saveEdit = async () => {
     if (!editing) return;
     if (!editing.label.trim() || !editing.url.trim()) {
       toast.error("Label and URL are required");
       return;
     }
-    store.updateLink(editing.id, { label: editing.label.trim(), url: editing.url.trim(), category: editing.category });
+    await store.updateLink(editing.id, { label: editing.label.trim(), url: editing.url.trim(), category: editing.category });
     setEditing(null);
     toast.success("Link updated");
   };
@@ -111,7 +120,7 @@ export const AdminPanel = ({ session }: Props) => {
               <Copy className="mr-2 h-4 w-4" />Share
             </Button>
             <Button asChild variant="secondary" size="sm" className="rounded-full">
-              <RLink to="/"><ExternalLink className="mr-2 h-4 w-4" />View page</RLink>
+              <Link to="/"><ExternalLink className="mr-2 h-4 w-4" />View page</Link>
             </Button>
             <Button size="sm" onClick={() => auth.logout()} className="rounded-full bg-foreground text-background hover:bg-foreground/90">
               <LogOut className="mr-2 h-4 w-4" />Log out
