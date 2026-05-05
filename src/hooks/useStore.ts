@@ -2,26 +2,70 @@ import { useEffect, useState } from "react";
 import { store, type Profile, type LinkItem } from "@/lib/store";
 import { auth, type JwtPayload } from "@/lib/auth";
 
-export function useProfile(): [Profile, (p: Profile) => void] {
-  const [p, setP] = useState<Profile>(() => store.getProfile());
+export function useProfile(): { profile: Profile; setProfile: (p: Profile) => Promise<void>; loading: boolean } {
+  const [profile, setProfileState] = useState<Profile>(() => store.getCachedProfile());
+  const [loading, setLoading] = useState(true);
+
   useEffect(() => {
-    const sync = () => setP(store.getProfile());
+    const load = async () => {
+      const data = await store.getProfile();
+      setProfileState(data);
+      setLoading(false);
+    };
+    load();
+
+    const sync = () => {
+      setProfileState(store.getCachedProfile());
+    };
     window.addEventListener("lt:update", sync);
     window.addEventListener("storage", sync);
-    return () => { window.removeEventListener("lt:update", sync); window.removeEventListener("storage", sync); };
+    window.addEventListener("focus", load);
+    return () => {
+      window.removeEventListener("lt:update", sync);
+      window.removeEventListener("storage", sync);
+      window.removeEventListener("focus", load);
+    };
   }, []);
-  return [p, (next) => store.saveProfile(next)];
+
+  const setProfile = async (next: Profile) => {
+    setProfileState(next); // Update local state immediately
+    await store.saveProfile(next); // Sync to store/DB
+  };
+
+  return { profile, setProfile, loading };
 }
 
-export function useLinks(): [LinkItem[], (l: LinkItem[]) => void] {
-  const [l, setL] = useState<LinkItem[]>(() => store.getLinks());
+export function useLinks(): { links: LinkItem[]; setLinks: (l: LinkItem[]) => Promise<void>; loading: boolean } {
+  const [links, setLinksState] = useState<LinkItem[]>(() => store.getCachedLinks());
+  const [loading, setLoading] = useState(true);
+
   useEffect(() => {
-    const sync = () => setL(store.getLinks());
+    const load = async () => {
+      const data = await store.getLinks();
+      setLinksState(data);
+      setLoading(false);
+    };
+    load();
+
+    const sync = () => {
+      setLinksState(store.getCachedLinks());
+    };
     window.addEventListener("lt:update", sync);
     window.addEventListener("storage", sync);
-    return () => { window.removeEventListener("lt:update", sync); window.removeEventListener("storage", sync); };
+    window.addEventListener("focus", load);
+    return () => {
+      window.removeEventListener("lt:update", sync);
+      window.removeEventListener("storage", sync);
+      window.removeEventListener("focus", load);
+    };
   }, []);
-  return [l, (next) => store.saveLinks(next)];
+
+  const setLinks = async (next: LinkItem[]) => {
+    setLinksState(next); // Update local state immediately
+    await store.saveLinks(next); // Sync to store/DB
+  };
+
+  return { links, setLinks, loading };
 }
 
 export function useSession(): { session: JwtPayload | null; loading: boolean } {
@@ -31,13 +75,19 @@ export function useSession(): { session: JwtPayload | null; loading: boolean } {
     let alive = true;
     const sync = async () => {
       const s = await auth.getSession();
-      if (alive) { setSession(s); setLoading(false); }
+      if (alive) {
+        setSession(s);
+        setLoading(false);
+      }
     };
     sync();
     window.addEventListener("lt:update", sync);
     window.addEventListener("storage", sync);
-    return () => { alive = false; window.removeEventListener("lt:update", sync); window.removeEventListener("storage", sync); };
+    return () => {
+      alive = false;
+      window.removeEventListener("lt:update", sync);
+      window.removeEventListener("storage", sync);
+    };
   }, []);
   return { session, loading };
 }
-
